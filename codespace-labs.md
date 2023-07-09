@@ -447,8 +447,91 @@ get things running again.
 > **\$ k taint nodes <node-name-goes-here> roar:NoSchedule**
 >
 
+**Lab 5 - Working with Security Contexts and RBAC **
 
+**Purpose: In this lab, we'll learn more about what a pod security context is and why they are needed.  We'll also see how to create a service account with RBAC.**
 
+1. The files for this lab are in the roar-context subdirectory. Change to that, create a namespace, and do a
+Helm install of our release.
+
+>
+> **\$ cd ~/adv-k8s/roar-context**
+>
+> **\$ k create ns context**
+>
+> **\$ helm install -n context context .**
+
+2. If you look at the pods in the namespace, you'll see that the mysql pod is running, but the web pod is
+not. Do a describe on the web pod to see what the problem is.
+
+>
+> **\$ k get pods -n context**
+>
+> **\$ k describe -n context pod -l app=roar-web**
+>
+
+3. In the "Events" section, you'll see an error like "Error: container has runAsNonRoot and image has non-
+numeric user (tomcat), cannot verify user is non-root". This happens because we have a Pod Security
+Policy (discussed in next section) that specifies that pods can't run as the root user. We could go back
+and update the container to have a numeric non-root user. Or we can add a Security Context definition
+in our pod spec. We'll add the Security Context definition.
+
+>
+> edit **charts/roar-web/templates/deployment.yaml** and add the following lines at the bottom (ensuring they line up with the "containers:" column)
+>
+```
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 999
+```
+
+4. Once you've made the changes to the pod spec, go ahead and redeploy the Helm chart. Both pods
+should now run as expected. (Note that you may need to refresh a time or two to see the Running
+state.)
+
+>
+> **\$ helm upgrade -n context context --recreate-pods .**
+> **\$ k get pods -n context**
+>
+
+5. In addition to controlling access and authorization for pods with security contexts, we can use RBAC
+to control access and authorization in Kubernetes clusters and namespaces. For the next lab, we'll
+need a service account with limited access for some of the examples. Since this will be tied to a new
+namespace, go ahead and create the namespace and then create the service account.
+
+>
+> **\$ k create ns policy**
+>
+> **\$ k create sa -n policy roar-account**
+>
+7. To keep things simple, we'll bind this account to an existing, built-in role that's available in the
+cluster - edit. Let's take a look at what this role includes:
+
+>
+> **\$ k describe clusterrole edit**
+>
+
+8. To do the actual binding, we'll create a rolebinding object. This will create a rolebinding named
+roar-editor that allows our roar-account to have the cluster edit permissions.
+
+>
+> **\$ k create rolebinding -n policy roar-editor --clusterrole=edit --serviceaccount=policy:roar-account**
+>
+
+9. Next, we'll create a new role named "roar-policies" in the "policy" namespace that allows for the "use"
+verb to be done against a pod security policy that we'll create in the next lab.
+
+>
+> **\$ k create role -n policy policy:roar-policies --verb=use --resource=podsecuritypolicies.extensions --resource-name=roar-policies**
+>
+
+10. Finally, we'll create some aliases to allow us to run with and without the service account.
+
+>
+> **\$ alias k-admin='k -n policy'**
+>
+> **\$ alias k-editor='k --as=system:serviceaccount:policy:roar-account -n policy'**
+>
 -<p align="center">
 **[END OF LAB]**
 </p>
