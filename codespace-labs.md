@@ -342,6 +342,113 @@ since it was no longer a requirement to match those labels.
 > **\$ k get pods -n affin**
 >
 
-<p align="center">
+**Lab 4 - Working with Taints and Tolerations**
+
+**Purpose: In this lab, we'll explore some of the uses of taints and tolerations in Kubernetes**
+
+1. The files for this lab are in the roar-taint subdirectory. Change to that, create a namespace, and do a
+Helm install of our release.
+
+>
+> **\$ cd ~/adv-k8s/roar-taint**
+>
+> **\$ k create ns taint**
+>
+> **\$ helm install -n taint taint .**
+>
+
+2. At this point, all pods should be running because there are no taints on the node. (You can do a get on
+the pods to verify if you want.). Let's add a taint on the node that implies that pods must be part of the
+roar app to be scheduled.
+
+>
+> **\$ k get pods -n taint**
+>
+> **\$ k taint nodes <node-name-goes-here> roar=app:NoSchedule**
+>
+
+3. Now, let's delete the release and install again. Then take a look at the pods.
+
+>
+> **\$ helm delete -n taint taint**
+>
+> **\$ helm install -n taint taint .**
+>
+> **\$ k get pods -n taint**
+>
+
+4. The web pod has failed to be scheduled. Do a describe to see why.
+
+>   
+> **\$ k describe -n taint pod -l app=roar-web**
+>
+
+5. Notice that it says "1 node(s) had taints that the pod didn't tolerate." So our database pod must have
+had a toleration for it since it was running. Take a look at the two tolerations in the database pod (at
+the end of the deployment.yaml file).
+
+>
+> **\$ cat charts/roar-db/templates/deployment.yaml**
+>
+
+6. Notice the toleration for "roar" and "Exists". This says that the pod can run on the node even if the taint
+we created in step 2 above is there - regardless of the value. We need to add this to our web pod spec
+so it can run there as well.
+
+Edit the file **charts/roar-web/templates/deployment.yaml** and add these lines (lining up with the same starting column as "containers:")
+```
+tolerations:
+- key: "roar"
+  operator: "Exists"
+  effect: "NoSchedule"
+```
+
+7. Now with the toleration added for the web pod, do an upgrade to see if we can get the web pod
+scheduled now.
+
+>
+> **\$ helm upgrade -n taint taint .**
+>
+> **\$ k get pods -n taint**
+>
+
+8. Now let's add one more taint for the other toleration that the mysql pod had. Afterwards, take a look at
+the state of the pods.
+
+>
+> **\$ k taint nodes <node-name-goes-here> use=database:NoExecute**
+>
+> **\$ k get pods -n taint**
+>
+
+9. Why is the web pod not running? The database pod has a toleration for this taint. You can see that in
+the charts/roar-db/templates/deployment.yaml file near the bottom. You can also do a describe on the
+web pod again if you want to see that it didn't tolerate the new taint.
+
+>
+> **\$ cat charts/roar-db/templates/deployment.yaml**
+>
+> **\$ k describe -n taint pod -l app=roar-web**
+>
+
+10. But the web pod doesn't have this toleration, so because of the "No Execute" policy, it gets kicked out.
+We could add a toleration to the web pod spec for this, but for simplicity, let's just remove the taint to
+get things running again.
+
+>
+> **\$ k taint nodes <node-name-goes-here> use:NoExecute-**
+>
+> **\$ k get pods -n taint**
+>
+
+11. Go ahead and remove the other taint to prepare for future labs.
+
+>    
+> **\$ k taint nodes <node-name-goes-here> roar:NoSchedule**
+>
+
+
+
+-<p align="center">
 **[END OF LAB]**
 </p>
