@@ -243,9 +243,103 @@ to see what is being used.
 > **\$ k describe quota -n quotas**
 >
 
-12. Now in the right terminal, enter a command to delete the database pod. Watch the activity in the left terminal as the old pod is removed and a new, different one created by the deployment. (You can tell its a different pod by looking at the end of the name.)
+**Lab 3 - Selecting Nodes**
+
+**Purpose: In this lab, we'll explore some of the ways we can tell Kubernetes which node to schedule pods on.**
+
+1. The files for this lab are in the roar-affin subdirectory. Change to that, create a namespace, and do a
+Helm install of our release.
+
 >
-> **\$ kubectl delete -n roar pod -l app=roar-db**
+> **\$ cd ~/adv-k8s/roar-affin**
+>
+> **\$ k create ns affin**
+>
+> **\$ helm install -n affin affin .**
+>
+
+2. Take a look at the status of the pods in the namespace. You'll notice that they are not ready. Let's
+figure out why. Start with the mysql one and do a describe on it.
+
+>
+> **\$ k get pods -n affin**
+>
+> **\$ k describe -n affin pod -l app=mysql**
+>
+
+3. In the output of the describe command, in the Events section, you can see that it failed to be
+scheduled because there were "0/1 nodes are available: 1 node(s) didn't match node selector". And
+further up, you can see that it is looking for a Node-Selector of "type=mini".
+
+4. This means the pod definition expected at least one node to have a label of "type=mini". Take a look
+at what labels are on our single node now.
+
+>
+> **\$ k get nodes --show-labels**
+>
+
+5. Since we don't have the desired label on the node, we'll add it and then verify it's there.
+
+>
+> **\$ k label node <node-name-goes-here> type=mini**
+>
+> **\$ k get nodes --show-labels | grep type**
+>
+
+6. At this point, if you look again at the pods in the namespace you should see that the mysql pod is
+now running. Also, if you do a describe on it, you'll see an entry in the Events: section where it was
+scheduled.
+
+>
+> **\$ k get pods -n affin**
+>
+> **\$ k describe -n affin pod -l app=mysql**
+>
+
+7. Now, let's look at the web pod. If you do a describe on it, you'll see similar messages about
+problems scheduling. But the node-selector entry will not list one. This is because we are using the
+node affinity functionality here. You can see the affinity definition by running the second command
+below.
+
+>
+> **\$ k describe pod -n affin -l app=roar-web**
+>
+> **\$ k get -n affin pod -l app=roar-web -o yaml | grep affinity -A10**
+>
+
+8. In the output from the grep, you can see that the nodeAffinity setting is
+"requiredDuringSchedulingIgnoredDuringExecution" and it would match up with a label of
+"system=minikube" or "system=single". But let's assume that we don't really need a node like that,
+it's only a preference. If that's the case we can change the pod spec to use
+"preferredDuringSchedulingIgnoredDuringExecution".
+
+>
+> Open **charts/roar-web/templates/deployment.yaml** and change
+```
+requiredDuringSchedulingIgnoredDuringExecution:
+  nodeSelectorTerms:
+  - matchExpressions:
+```
+to
+```
+preferredDuringSchedulingIgnoredDuringExecution:
+- weight: 1
+  preference:
+    matchExpressions:
+```
+
+9. Now, upgrade the deployment with the recreate-pods option to see the changes take effect.
+
+>
+> **\$ helm upgrade -n affin affin --recreate-pods .**
+>
+
+10. After a few moments, you should be able to get the list of pods and see that the web one is running
+now too. You can do a describe if you want and see that it has been assigned to the training1 node
+since it was no longer a requirement to match those labels.
+
+>
+> **\$ k get pods -n affin**
 >
 
 <p align="center">
