@@ -5,7 +5,8 @@
 
 **Lab 1- Working with Kubernetes Probes **
 
-**Purpose: In this lab, we'll see how to build Docker images from Dockerfiles.**
+**Purpose: In this lab, we'll learn how Kubernetes uses probes for determining the health of pods, how to set
+them up, and how to debug problems around them.**
 
 1. For this workshop, files that we need to use are contained in the directory **adv-k8s** in the home
 directory on the disk. Under that directory are subdirectories for each of the main topics that we will
@@ -75,9 +76,7 @@ readinessProbe:
 exec:
 command:
 - mysql
-```
-**- --version**
-```
+- --version
 failureThreshold: 3
 initialDelaySeconds: 5separate terminal window, take a look at that and find the section near the bottom with the
 readinessProbe spec. (The figure below shows how to open an additional terminal window.)
@@ -116,94 +115,134 @@ https://gwstudent-cautious-space-goldfish-p7vpg5q55xx36944-8089.preview.app.gith
 **[END OF LAB]**
 </p>
 
-**Lab 2 - Exploring and Deploying into Kubernetes**
+**Lab 2 - Working with Quotas**
 
-**Purpose:** In this lab, we'll start to learn about Kubernetes and its
-object types, such as nodes and namespaces. We'll also deploy a version
-of our app that has had Kubernetes yaml files created for it.
+**Purpose: In this lab, we'll explore some of the simple ways we can account for resource usage with pods and
+nodes, and setup and use quotas.**
 
-1.  Before we can deploy our application into Kubernetes, we need to
-    have appropriate Kubernetes manifest yaml files for the different
-    types of k8s objects we want to create. These can be separate files
-    or they can be combined. For our project, there are separate ones
-    (deployments and services for both the web and db pieces) already
-    setup for you in the **k8s** directory. Change into that
-    directory and take a look at the yaml file there for the Kubernetes
-    deployments and services.
+1.  Before we launch any more deployments, let's set up some specific policies and classes of pods that
+work with those policies. First, we'll setup some priority classes. Take a look at the definition of the
+pod priorities and then apply the definition to create them.
 >
-> **\$ cd ../k8s**
+> **\$ cd ../extra**
 >
-> **\$ cat *.yaml**
+> **\$ cat pod-priorities.yaml**
+>
+> **\$ k apply -f ./pod-priorities.yaml**
 >
 
-2.  We're going to deploy these into Kubernetes into a namespace. Take a
-    look at the current list of namespaces and then let's create a new
-    namespace to use.
+2.  Now, that the priority classes have been created, we'll create some resource quotas built around
+them. Since quotas are namespace-specific, we'll go ahead and create a new namespace to work in.
+Take a look at the definition of the quotas and then apply the definition to create them.
 >
-> **\$ kubectl get ns**
+> **\$ k create ns quotas**
 >
-> **\$ kubectl create ns roar**
+> **\$ cat pod-quotas.yaml**
 >
-
-3.  Now, let's deploy our yaml specifications to Kubernetes. We will use
-    the apply command and the -f option to specify the file. (Note the
-    -n option to specify our new namespace.)
->
-> **\$ kubectl -n roar apply -f .**
->
-After you run these commands, you should see output like the following:
-
-```console
-deployment.extensions/roar-web created
-service/roar-web created
-deployment.extensions/mysql created
-service/mysql created
-```
-
-4.  Now, let's look at the pods currently running in our "roar"
-    namespace (and also see their labels).
->
-> **\$ kubectl get pods -n roar \--show-labels**
+> **\$ k apply -f ./pod-quotas.yaml -n quotas**
 >
 
-5.  Next, let's look at the running application.  Run the command below.
+3.  After setting up the quotas, you can see how things are currently setup and allocated.
+>
+> **\$ k get priorityClassses**
+>
+> **\$ k describe quota -n quotas**
+>
+
+4. In the roar-quota directory we have a version of our charts with requests, limits and priority classes
+assigned. You can take a look at those by looking at the end of the deployment.yaml templates.
+After that, go ahead and install the release.
+>
+> **\$ cd ~/adv-k8s/roar-quotas**
+>
+> **\$ cat charts/roar-db/templates/deployment.yaml**
+>
+> **\$ cat charts/roar-web/templates/deployment.yaml**
+>
+> **\$ helm install -n quotas quota .**
+>
+
+5.  After a few moments, take a look at the state of the pods in the deployment. Notice that while the
+web pod is running, the database one does not exist. Let's figure out why. Since there is no pod to
+do a describe on, we'll look for a replicaset.
 
 > 
-> **\$ kubectl port-forward -n roar svc/roar-web 8089 &**
+> **\$ k get pods -n quotas**
 >
-![Port pop-up](./images/kint6.png?raw=true "Port pop-up")
+> **\$ k get rs -n quotas**
+> 
 
-6.  You should see a pop-up in your codespace that informs that `(i) Your application running on port 8089 is available.` and gives you a button to click on to `Open in browser`.  Click on that button. (If you don't see the pop-up, you can also switch to the `PORTS` tab at the top of the terminal, select the row with `8089`, and right-click and select `View in browser`.)
+6.  Notice the mysql replicaset. It has DESIRED=1, but CURRENT=0. Let's do a describe on it to see if we
+can find the problem.
 
-7.  What you should see in the browser is an application called **Apache Tomcat** running. Click at the end of the URL in the address bar and add the text `/roar/`.  Make sure to include the trailing slash.  Then hit enter and you should see the *roar* application running in the browser.
+>
+> **\$ k describe -n quotas rs -l app=mysql**
+> 
 
-The complete URL should look something like
-```console
-https://gwstudent-cautious-space-goldfish-p7vpg5q55xx36944-8089.preview.app.github.dev/roar/
+7. What does the error message say? The request for memory we asked for the pod exceeds the quota
+for the quota "pods-average". If you recall, the pods-average one has a memory limit of 5Gi. The
+pods-critical one has a higher memory limit of 10Gi. So let's change priority class for the mysql pod
+to be critical.
+
+Edit the charts/roar-db/templates/deployment.yaml file and change the last line from
 ```
-![Running app in K8s](./images/kint5.png?raw=true "Running app in K8s")
+priorityClassName: average
+```
+to
+```
+priorityClassName: critical
+```
+being careful not to change the spaces at the start of the line.
 
-8.  Let's check the logs of the database pod to see what the application is doing there. 
-    Run the command below to see the logs of the database pod:
+8.  Upgrade the Helm release to get your changes deployed and then look at the pods again.
 >
-> **\$ kubectl logs -n roar -l app=roar-db**
+> **\$ helm upgrade -n quotas quota .**
+>
+> **\$ k get pods -n quotas**
 >
 
-9.  To get the overall view (description) of what's in the pod and what's happening
-    with it, we can also use the "describe" command. Run the command below.
+9.  Notice that while the mysql pod shows up in the list, its status is "Pending". Let's figure out why
+that is by doing a describe on it
 >
-> **\$ kubectl -n roar describe pod -l app=roar-db**
+> **\$ k describe -n quotas pod -l app=mysql**
 >
-    Near the bottom of this output, notice the *Events* messages which describe major events associated with the pod.
 
-10.  To demonstrate the deployment functionality in Kubernetes, let's delete one of the pods. With your cursor in your terminal in the codespace, right-click and select the `Split Terminal` option. This will add a second terminal side-by-side with your other one.
+10.  The error message indicates that there are no nodes available with enough memory to schedule this
+pod. Note that this does not reference any quotas we've setup. Let's get the list of nodes (there's
+only 1 in the VM) and check how much memory is available on our node. Use the first command to
+get the name of the node and the second to check how much memory it has.
 
-![Splitting the terminal](./images/kint7.png?raw=true "Splitting the terminal")
+>
+> **\$ k get nodes**
+>
+> **\$ k describe node <node-name-goes-here> | grep memory**
+>
 
-11.  In the left terminal, run a command to start a `watch` of pods in the roar namespace.
+11.  Our mysql pod is asking for an unrealistically large number (to provoke the error). Even if it were
+just the under the amount available on the node, other processes running on the node in other
+namespaces could be using several Gi.
+
+12. Getting back to our needs let's drop the limit and request values down to 5 and 3 respectively and
+see if that fixes things. Open up the charts/roar-db/templates/deployment.yaml file and change the two lines near the bottom from
+```
+memory: "100Gi"
+```
+to
+```memory: "5Gi"```(for limits)
+and
+```memory: "1Gi"```(for requests)
+
+13. Do a helm upgrade and add the "--recreate-pods" option to force the pods to be recreated. After a
+moment if you check, you should see the pods running now. Finally, you can check the quotas again
+to see what is being used.
+
 >
-> **\$ kubectl get -n roar pods -w**
+> **\$ helm upgrade -n quotas quota --recreate-pods .**
+> (ignore the deprecated warning)
+> **\$ k get pods -n quotas**
+> **\$ k describe quota -n quotas**
 >
+
 12. Now in the right terminal, enter a command to delete the database pod. Watch the activity in the left terminal as the old pod is removed and a new, different one created by the deployment. (You can tell its a different pod by looking at the end of the name.)
 >
 > **\$ kubectl delete -n roar pod -l app=roar-db**
