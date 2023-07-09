@@ -75,7 +75,7 @@ readinessProbe:
 exec:
 command:
 - mysql
-- --version
+- `**`--version`**`
 failureThreshold: 3
 initialDelaySeconds: 5separate terminal window, take a look at that and find the section near the bottom with the
 readinessProbe spec. (The figure below shows how to open an additional terminal window.)
