@@ -3,7 +3,14 @@
 ## Session labs for codespace only
 ## Revision 1.0 - 07/09/23
 
-**Lab 1- Working with Kubernetes Probes **
+**Startup**
+```
+alias k=kubectl
+minikube start
+```
+
+
+**Lab 1- Working with Kubernetes Probes**
 
 **Purpose: In this lab, we'll learn how Kubernetes uses probes for determining the health of pods, how to set
 them up, and how to debug problems around them.**
