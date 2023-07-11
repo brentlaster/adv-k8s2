@@ -20,9 +20,9 @@ directory on the disk. Under that directory are subdirectories for each of the m
 cover. For this section, we’ll use files in the roar-probes directory. (roar is the name of the sample app
 we’ll be working with.) Change into that directory. In the terminal emulator, enter.
 
->
-> **\$ cd roar-probes**
->
+```
+cd roar-probes**
+```
 
 2. In this directory, we have Helm charts to deploy the database and webapp parts of our application. You
 can use the “tree” command to see the overall structure if you are interested. Then create a namespace
@@ -30,27 +30,26 @@ named “probes” to hold the deployment. Finally, deploy the app into the clus
 command. (In the last command, the first occurrence of “probes” indicates the namespace, the second
 is the name of the release, and the “.” means using the files from this directory.)
 
->
-> **\$ tree**
->
-> **\$ k create ns probes**
->
+```
+tree
+k create ns probes
+```
 
 3.  Now let's see how things are progressing. Take a look at the overall status of the pods, also showing the
 labels on the pods
 
->
-> **\$ k get pods -n probes --show-labels**
->
-
+```
+k get pods -n probes --show-labels
+```
 
 4.  You should see that while the web pod is running, the database pod is not ready at all. (If the web pod
 isn't "Running" yet, it may still need time to startup. You can run the command again after a minute or
 so to give it time to finish starting up.). Now, let’s do a “describe” operation on the pod itself. We’ll
 specify the pod using one of its labels instead of having to use the pod name.
->
-> **\$ k describe -n probes pod -l app=mysql**
->
+
+```
+k describe -n probes pod -l app=mysql
+```
 
 5.  Note the error message near the bottom of the output mentioning the readiness probe failed. The
 readiness probe in this case is just an exec of a command to invoke mysql. The error implies that the call
@@ -91,21 +90,21 @@ readinessProbe spec. (The figure below shows how to open an additional terminal 
 9. Upgrade the helm installation. After a minute or so, you can verify that you have a working mysql pod.
 (You may have to wait a moment and then check again.)
 
->
-> **\$ helm upgrade -n probes probes .**
->
+```
+helm upgrade -n probes probes .
+```
 
 10. At this point, you can get the service's nodeport.
 
->    
-> **\$ kubectl get svc -n probes**
->
+```   
+kubectl get svc -n probes
+```
 
 11.  Next, let's look at the running application.  Run the command below.
 
-> 
-> **\$ kubectl port-forward -n probes svc/roar-web 8089 &**
->
+```
+kubectl port-forward -n probes svc/roar-web 8089 &
+```
 ![Port pop-up](./images/kint6.png?raw=true "Port pop-up")
 
 12.  You should see a pop-up in your codespace that informs that `(i) Your application running on port 8089 is available.` and gives you a button to click on to `Open in browser`.  Click on that button. (If you don't see the pop-up, you can also switch to the `PORTS` tab at the top of the terminal, select the row with `8089`, and right-click and select `View in browser`.)
@@ -130,61 +129,65 @@ nodes, and setup and use quotas.**
 1.  Before we launch any more deployments, let's set up some specific policies and classes of pods that
 work with those policies. First, we'll setup some priority classes. Take a look at the definition of the
 pod priorities and then apply the definition to create them.
->
-> **\$ cd ../extra**
->
-> **\$ cat pod-priorities.yaml**
->
-> **\$ k apply -f ./pod-priorities.yaml**
->
+
+```
+cd ../extra
+
+cat pod-priorities.yaml
+
+k apply -f ./pod-priorities.yaml
+```
 
 2.  Now, that the priority classes have been created, we'll create some resource quotas built around
 them. Since quotas are namespace-specific, we'll go ahead and create a new namespace to work in.
 Take a look at the definition of the quotas and then apply the definition to create them.
->
-> **\$ k create ns quotas**
->
-> **\$ cat pod-quotas.yaml**
->
-> **\$ k apply -f ./pod-quotas.yaml -n quotas**
->
+
+```
+k create ns quotas
+
+cat pod-quotas.yaml
+
+k apply -f ./pod-quotas.yaml -n quotas
+```
 
 3.  After setting up the quotas, you can see how things are currently setup and allocated.
->
-> **\$ k get priorityClassses**
->
-> **\$ k describe quota -n quotas**
->
+
+```
+k get priorityClassses
+
+k describe quota -n quotas
+```
 
 4. In the roar-quota directory we have a version of our charts with requests, limits and priority classes
 assigned. You can take a look at those by looking at the end of the deployment.yaml templates.
 After that, go ahead and install the release.
->
-> **\$ cd ../roar-quotas**
->
-> **\$ cat charts/roar-db/templates/deployment.yaml**
->
-> **\$ cat charts/roar-web/templates/deployment.yaml**
->
-> **\$ helm install -n quotas quota .**
->
+
+```
+cd ../roar-quotas
+
+cat charts/roar-db/templates/deployment.yaml
+
+cat charts/roar-web/templates/deployment.yaml
+
+helm install -n quotas quota .
+```
 
 5.  After a few moments, take a look at the state of the pods in the deployment. Notice that while the
 web pod is running, the database one does not exist. Let's figure out why. Since there is no pod to
 do a describe on, we'll look for a replicaset.
 
-> 
-> **\$ k get pods -n quotas**
->
-> **\$ k get rs -n quotas**
-> 
+``` 
+k get pods -n quotas
+
+k get rs -n quotas
+```
 
 6.  Notice the mysql replicaset. It has DESIRED=1, but CURRENT=0. Let's do a describe on it to see if we
 can find the problem.
 
->
-> **\$ k describe -n quotas rs -l app=mysql**
-> 
+```
+k describe -n quotas rs -l app=mysql
+```
 
 7. What does the error message say? The request for memory we asked for the pod exceeds the quota
 for the quota "pods-average". If you recall, the pods-average one has a memory limit of 5Gi. The
@@ -202,28 +205,30 @@ priorityClassName: critical
 being careful not to change the spaces at the start of the line.
 
 8.  Upgrade the Helm release to get your changes deployed and then look at the pods again.
->
-> **\$ helm upgrade -n quotas quota .**
->
-> **\$ k get pods -n quotas**
->
+
+```
+helm upgrade -n quotas quota .
+
+k get pods -n quotas
+```
 
 9.  Notice that while the mysql pod shows up in the list, its status is "Pending". Let's figure out why
 that is by doing a describe on it
->
-> **\$ k describe -n quotas pod -l app=mysql**
->
+
+```
+k describe -n quotas pod -l app=mysql
+```
 
 10.  The error message indicates that there are no nodes available with enough memory to schedule this
 pod. Note that this does not reference any quotas we've setup. Let's get the list of nodes (there's
 only 1 in the VM) and check how much memory is available on our node. Use the first command to
 get the name of the node and the second to check how much memory it has.
 
->
-> **\$ k get nodes**
->
-> **\$ k describe node <node-name-goes-here> | grep memory**
->
+```
+k get nodes
+
+k describe node <node-name-goes-here> | grep memory
+```
 
 11.  Our mysql pod is asking for an unrealistically large number (to provoke the error). Even if it were
 just the under the amount available on the node, other processes running on the node in other
@@ -243,12 +248,14 @@ and
 moment if you check, you should see the pods running now. Finally, you can check the quotas again
 to see what is being used.
 
->
-> **\$ helm upgrade -n quotas quota --recreate-pods .**
-> (ignore the deprecated warning)
-> **\$ k get pods -n quotas**
-> **\$ k describe quota -n quotas**
->
+```
+helm upgrade -n quotas quota --recreate-pods .
+ (ignore the deprecated warning)
+
+k get pods -n quotas
+
+k describe quota -n quotas
+```
 
 **Lab 3 - Selecting Nodes**
 
