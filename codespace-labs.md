@@ -98,13 +98,13 @@ readinessProbe spec. (The figure below shows how to open an additional terminal 
 10. At this point, you can get the service's nodeport.
 
 >    
-> **\$ kubectl get svc -n roar \--show-labels**
+> **\$ kubectl get svc -n probes**
 >
 
 11.  Next, let's look at the running application.  Run the command below.
 
 > 
-> **\$ kubectl port-forward -n roar svc/roar-web 8089 &**
+> **\$ kubectl port-forward -n probes svc/roar-web 8089 &**
 >
 ![Port pop-up](./images/kint6.png?raw=true "Port pop-up")
 
@@ -160,7 +160,7 @@ Take a look at the definition of the quotas and then apply the definition to cre
 assigned. You can take a look at those by looking at the end of the deployment.yaml templates.
 After that, go ahead and install the release.
 >
-> **\$ cd ~/adv-k8s/roar-quotas**
+> **\$ cd ../roar-quotas**
 >
 > **\$ cat charts/roar-db/templates/deployment.yaml**
 >
@@ -191,7 +191,7 @@ for the quota "pods-average". If you recall, the pods-average one has a memory l
 pods-critical one has a higher memory limit of 10Gi. So let's change priority class for the mysql pod
 to be critical.
 
-Edit the charts/roar-db/templates/deployment.yaml file and change the last line from
+Edit the roar-quotas/charts/roar-db/templates/deployment.yaml file and change the last line from
 ```
 priorityClassName: average
 ```
@@ -230,7 +230,7 @@ just the under the amount available on the node, other processes running on the 
 namespaces could be using several Gi.
 
 12. Getting back to our needs let's drop the limit and request values down to 5 and 3 respectively and
-see if that fixes things. Open up the charts/roar-db/templates/deployment.yaml file and change the two lines near the bottom from
+see if that fixes things. Open up the roar-quotas/charts/roar-db/templates/deployment.yaml file and change the two lines near the bottom from
 ```
 memory: "100Gi"
 ```
@@ -258,7 +258,7 @@ to see what is being used.
 Helm install of our release.
 
 >
-> **\$ cd ~/adv-k8s/roar-affin**
+> **\$ cd ../roar-affin**
 >
 > **\$ k create ns affin**
 >
@@ -357,7 +357,7 @@ since it was no longer a requirement to match those labels.
 Helm install of our release.
 
 >
-> **\$ cd ~/adv-k8s/roar-taint**
+> **\$ cd ../roar-taint**
 >
 > **\$ k create ns taint**
 >
