@@ -57,7 +57,7 @@ to “mysql” failed. But note that it doesn’t say it couldn’t find it. Rat
 since it tried to invoke it without a valid name and password to login.
 
 6. You can see the YAML for this in the deployment template in the corresponding Helm chart. In the file explorer to the left,
- select the file **roar-probes/charts/roar-db/templates/deployment.yaml** file and click on it to open it up in the files area above the terminal.
+ select the file [**roar-probes/charts/roar-db/templates/deployment.yaml**](./roar-probes/charts/roar-db/templates/deployment.yaml)file and click on it to open it up in the files area above the terminal.
 Find the section near the bottom with the **readinessProbe** spec.
 
 7. We actually don’t need to have a command login to verify readiness – we just need to know the mysql
