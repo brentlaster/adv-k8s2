@@ -21,7 +21,7 @@ cover. For this section, we’ll use files in the roar-probes directory. (roar i
 we’ll be working with.) Change into that directory. In the terminal emulator, enter.
 
 ```
-cd roar-probes**
+cd roar-probes
 ```
 
 2. In this directory, we have Helm charts to deploy the database and webapp parts of our application. You
