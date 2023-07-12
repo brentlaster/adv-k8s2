@@ -67,7 +67,7 @@ Find the section near the bottom with the **readinessProbe** spec.
 application responds. Let’s fix this by simply calling the “version” command - which we should be able
 to do without a login
 
-8. Edit the [file](./roar-probes/charts/roar-db/templates/deployment.yaml)and add a **--version** option between the **mysql** and **failureThreshold:** lines, as shown below:
+8. Edit the [file](./roar-probes/charts/roar-db/templates/deployment.yaml) and add a **--version** option between the **mysql** and **failureThreshold:** lines, as shown below:
 
 Change
 
@@ -79,7 +79,7 @@ command:
 failureThreshold: 3
 initialDelaySeconds: 5
 ```
-To add the line shown in bold
+To add the line **- --version** in the spot shown below
 ```
 readinessProbe:
 exec:
@@ -243,9 +243,9 @@ see if that fixes things. Open up the [**roar-quotas/charts/roar-db/templates/de
 memory: "100Gi"
 ```
 to
-```memory: "5Gi"```(for limits)
+```memory: "1Gi"``` (for limits)
 and
-```memory: "1Gi"```(for requests)
+```memory: "0.5Gi"``` (for requests)
 
 13. Do a helm upgrade and add the "--recreate-pods" option to force the pods to be recreated. After a
 moment if you check, you should see the pods running now. Finally, you can check the quotas again
@@ -259,6 +259,14 @@ k get pods -n quotas
 
 k describe quota -n quotas
 ```
+14. To save cycles on the node, go ahead and remove the probes namespace.
+
+```
+k delete ns probes
+```
+<p align="center">
+**[END OF LAB]**
+</p>
 
 **Lab 3 - Selecting Nodes**
 
@@ -298,7 +306,7 @@ k get nodes --show-labels
 5. Since we don't have the desired label on the node, we'll add it and then verify it's there.
 
 ```
-k label node <node-name-goes-here> type=mini
+k label node minikube type=mini
 
 k get nodes --show-labels | grep type
 ```
@@ -330,7 +338,7 @@ k get -n affin pod -l app=roar-web -o yaml | grep affinity -A10
 it's only a preference. If that's the case we can change the pod spec to use
 "preferredDuringSchedulingIgnoredDuringExecution".
 
-Open [**roar-affin/charts/roar-web/templates/deployment.yaml**](./roar-affin/charts/roar-web/templates/deployment.yaml)and change
+Open [**roar-affin/charts/roar-web/templates/deployment.yaml**](./roar-affin/charts/roar-web/templates/deployment.yaml) and change
 ```
 requiredDuringSchedulingIgnoredDuringExecution:
   nodeSelectorTerms:
@@ -357,6 +365,9 @@ since it was no longer a requirement to match those labels.
 ```
 k get pods -n affin
 ```
+<p align="center">
+**[END OF LAB]**
+</p>
 
 **Lab 4 - Working with Taints and Tolerations**
 
@@ -380,7 +391,7 @@ roar app to be scheduled.
 ```
 k get pods -n taint
 
-k taint nodes <node-name-goes-here> roar=app:NoSchedule
+k taint nodes minikube roar=app:NoSchedule
 ```
 
 3. Now, let's delete the release and install again. Then take a look at the pods.
@@ -411,7 +422,7 @@ cat charts/roar-db/templates/deployment.yaml
 we created in step 2 above is there - regardless of the value. We need to add this to our web pod spec
 so it can run there as well.
 
-Edit the file **charts/roar-web/templates/deployment.yaml** [**roar-taint/charts/roar-web/templates/deployment.yaml**](./roar-taint/charts/roar-web/templates/deployment.yaml) add these lines (lining up with the same starting column as "containers:")
+Edit the file [**roar-taint/charts/roar-web/templates/deployment.yaml**](./roar-taint/charts/roar-web/templates/deployment.yaml) add these lines (lining up with the same starting column as "containers:")
 ```
 tolerations:
 - key: "roar"
@@ -432,7 +443,7 @@ k get pods -n taint
 the state of the pods.
 
 ```
-k taint nodes <node-name-goes-here> use=database:NoExecute
+k taint nodes minikube use=database:NoExecute
 
 k get pods -n taint
 ```
@@ -452,7 +463,7 @@ We could add a toleration to the web pod spec for this, but for simplicity, let'
 get things running again.
 
 ```
-k taint nodes <node-name-goes-here> use:NoExecute-
+k taint nodes minikube use:NoExecute-
 
 k get pods -n taint
 ```
@@ -460,96 +471,92 @@ k get pods -n taint
 11. Go ahead and remove the other taint to prepare for future labs.
 
 ```  
-k taint nodes <node-name-goes-here> roar:NoSchedule
+k taint nodes minikube roar:NoSchedule-
 ```
+<p align="center">
+**[END OF LAB]**
+</p>
 
-**Lab 5 - Working with Security Contexts and RBAC **
 
-**Purpose: In this lab, we'll learn more about what a pod security context is and why they are needed.  We'll also see how to create a service account with RBAC.**
+**Lab 5 - Working with Pod Security Admission Controllers **
+
+**Purpose: In this lab, we'll learn more about what a pod security admission controller is and why they are needed.**
 
 1. The files for this lab are in the roar-context subdirectory. Change to that, create a namespace, and do a
 Helm install of our release.
 
 ```
-cd ~/adv-k8s/roar-context
+cd ../roar-context
 
 k create ns context
 
 helm install -n context context .
 ```
 
-2. If you look at the pods in the namespace, you'll see that the mysql pod is running, but the web pod is
-not. Do a describe on the web pod to see what the problem is.
+2. Our pods should be running now. But we want to make sure that our current workloads do not potentially violate the baseline policy. 
+So we'll do a dry-run on the namespace to check.
 
 ```
 k get pods -n context
 
-k describe -n context pod -l app=roar-web
-```
-
-3. In the "Events" section, you'll see an error like "Error: container has runAsNonRoot and image has non-
-numeric user (tomcat), cannot verify user is non-root". This happens because we have a Pod Security
-Policy (discussed in next section) that specifies that pods can't run as the root user. We could go back
-and update the container to have a numeric non-root user. Or we can add a Security Context definition
-in our pod spec. We'll add the Security Context definition.
-
-Open **charts/roar-web/templates/deployment.yaml** [**roar-context/charts/roar-web/templates/deployment.yaml**](./roar-context/charts/roar-web/templates/deployment.yaml) add the following lines at the bottom (ensuring they line up with the "containers:" column)
+k label --dry-run=server --overwrite ns context  pod-security.kubernetes.io/enforce=baseline
 
 ```
-securityContext:
-  runAsUser: 1000
-  runAsGroup: 999
-```
 
-4. Once you've made the changes to the pod spec, go ahead and redeploy the Helm chart. Both pods
-should now run as expected. (Note that you may need to refresh a time or two to see the Running
-state.)
+3. It looks like our workloads are good if we want to just enforce the baseline policy. Let's check though for the restricted policy.
 
 ```
-helm upgrade -n context context --recreate-pods .
-
-k get pods -n context
+k label --dry-run=server --overwrite ns context  pod-security.kubernetes.io/enforce=restricted
 ```
 
-5. In addition to controlling access and authorization for pods with security contexts, we can use RBAC
-to control access and authorization in Kubernetes clusters and namespaces. For the next lab, we'll
-need a service account with limited access for some of the examples. Since this will be tied to a new
-namespace, go ahead and create the namespace and then create the service account.
+4. Notice the warning messages from this run.  Let's see what would happen if we were to actually enforce the restricted policy instead.
+In the directory **extra**, there is a file named psa-ns.yml that has a definition for a namespace with restricted policy enforced. Go ahead and
+look at that file and then apply it to create the namespace.
 
 ```
-k create ns policy
+cat ../extra/psa-ns.yml
 
-k create sa -n policy roar-account
+k apply -f ../psa-ns.yml
 ```
-
-7. To keep things simple, we'll bind this account to an existing, built-in role that's available in the
-cluster - edit. Let's take a look at what this role includes:
+5. Now, let's see what happens when we try to install the same helm chart in the new namespace.
 
 ```
-k describe clusterrole edit
+helm install -n psa context .
 ```
 
-8. To do the actual binding, we'll create a rolebinding object. This will create a rolebinding named
-roar-editor that allows our roar-account to have the cluster edit permissions.
+6. Notice the various errors you get. And notice that Helm reports that it is deployed. Take a look at the pods in the namespace.
 
 ```
-k create rolebinding -n policy roar-editor --clusterrole=edit --serviceaccount=policy:roar-account
+k get pods -n psa
 ```
 
-9. Next, we'll create a new role named "roar-policies" in the "policy" namespace that allows for the "use"
-verb to be done against a pod security policy that we'll create in the next lab.
+7. There are no pods there because they were not permitted. Let's update the deployment manifest for the database charts to fix the issues.
+Edit the file [**roar-context/charts/roar-db/templates/deployment.yaml**](./roar-context/charts/roar-db/templates/deployment.yaml) and add these lines (lining up with the same starting column as "ports:" and "env:")
 
 ```
-k create role -n policy policy:roar-policies --verb=use --resource=podsecuritypolicies.extensions --resource-name=roar-policies
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]  
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 999
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
 ```
 
-10. Finally, we'll create some aliases to allow us to run with and without the service account.
+8. Now, upgrade the deployment to deploy the new manifest. And verify that the mysql pod has been admitted and has started up.
 
 ```
-alias k-admin='k -n policy'
+helm upgrade -n psa context .
 
-alias k-editor='k --as=system:serviceaccount:policy:roar-account -n policy'
+k get pods -n psa
 ```
--<p align="center">
+
+9. Repeat steps 7 and 8 for the web deployment manifest - the file [**roar-context/charts/roar-web/templates/deployment.yaml**](./roar-context/charts/roar-web/templates/deployment.yaml) 
+
+
+<p align="center">
 **[END OF LAB]**
 </p>
